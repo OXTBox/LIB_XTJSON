@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*:Zone.Identifier
+XTJSON/
+XTJSON_REBUILT/
+xtjson_diff.txt
