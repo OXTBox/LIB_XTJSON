@@ -173,3 +173,19 @@ jq '[.. | objects | select(has("script")) | {type, name, id, file: .script.file}
 # where a handler is defined
 grep -rn "on mouseUp" harvest/<Main>/scripts/
 ```
+
+
+## Sampled custom data (option `customSample`, 2026-11-13)
+
+For big stacks the harvester can sample custom property DATA instead of writing all of it
+(the XTJSON Batch app does this for stacks over 2 MB, and when it retries a stack that
+crashed). With `customSample` = N:
+- an array value keeps its first N entries (keys sorted, numerically when they are numbers),
+  nested arrays to depth 3, then `"(array of K keys)"`; plus `"$sampled": true` and
+  `"$more": <entries not written>`;
+- a text value longer than N lines or 2000 chars becomes
+  `{"$sampled": true, "lines": L, "chars": C, "first": "<first N lines, max 1000 chars>"}`;
+- a binary value becomes `{"$binary": true, "bytes": B, "$sampled": true}` (no blob file);
+- a property set with more than 25 keys keeps its first N keys, with `"$sampled"` and `"$more"`.
+The manifest's `options.customSample` says whether a harvest was sampled. A sampled harvest
+is for understanding a stack, not for rebuilding it exactly.

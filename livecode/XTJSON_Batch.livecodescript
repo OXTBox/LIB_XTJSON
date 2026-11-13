@@ -10,7 +10,11 @@ script "XTJSON_Batch"
 ## crashed the engine: it is marked CRASHED and skipped on the next run, so one bad stack
 ## can't stop the batch.
 ## Open this file in LiveCode (IDE or the LIB_MCP standalone): the window builds itself.
-##   Run   scan the inbox and harvest everything still waiting (the one click)
+##   Run   scan the inbox and harvest everything still waiting (the one click); at the end
+##         the stacks that crashed are retried once by themselves, custom data sampled
+##   Retry crashed   the same retry, by hand (also for stacks retried before)
+## Stacks over 2 MB are harvested with their custom property DATA sampled (first 5 entries
+## of each array, first 5 lines of each long text; LCHarvest2 option customSample).
 ##   Scan  just list what is waiting      Stop  finish the current stack, then stop
 ## From a script:  Batch.Run  /  Batch.Scan  /  Batch.Stop  /  Batch.Report()
 ## The stacks' own handlers never run (messages are locked while they are loaded).
@@ -18,19 +22,27 @@ script "XTJSON_Batch"
 
 constant kHarvestLib = "XT_HarvestLib"
 constant kStackExt = "livecode,rev,mc,lc"
+constant kBigStack = 2097152   -- stacks over 2 MB: custom property DATA is sampled (first 5 entries)
+constant kSample = 5
 
 local sPaths        -- [projects|inbox|out|done|harvester|log]
 local sList         -- the stacks found: relative paths, one per line
 local sState        -- [rel] -> waiting / OK / FAIL / CRASHED / moved
 local sSize         -- [rel] -> bytes (from the folder listing)
 local sStop, sRunning, sIndex, sStarted, sDone, sFailed
+local sTried        -- [rel] true once STARTed in this run: never twice (a loop guard)
+local sForceSample  -- [rel] true: sample its custom data whatever its size (Retry crashed)
+local sRetried      -- [rel] true: the log already shows a RETRY for it (never auto-retried twice)
 
 -------------------------------------------------------------------- the window
 
+-- only for this window: a harvested stack opening must never rebuild or rescan (that reset
+-- the states mid-run once and the batch looped on a stack it had already moved)
 on preOpenStack
+   if not (the long id of the target contains the long id of me) then pass preOpenStack   -- the target is this stack's card
    Batch.Paths
    Batch.BuildUI
-   Batch.Scan
+   if not sRunning then Batch.Scan
 end preOpenStack
 
 on Batch.BuildUI
@@ -49,10 +61,11 @@ on Batch.BuildUI
    Batch.Button "Run", 10, 76, "Batch.Run"
    Batch.Button "Scan", 120, 76, "Batch.Scan"
    Batch.Button "Stop", 230, 76, "Batch.Stop"
+   Batch.Button "Retry crashed", 780, 76, "Batch.RetryCrashed"
    if there is not a field "Status" then
       reset the templateField
       create field "Status"
-      set the rect of field "Status" to 340, 76, 890, 100
+      set the rect of field "Status" to 340, 76, 770, 100
       set the lockText of field "Status" to true
       set the showBorder of field "Status" to false
       set the opaque of field "Status" to false
@@ -121,12 +134,14 @@ end Batch.SizeText
 
 on Batch.Scan
    local tLog, tLine, tRel
+   if sRunning then return sList        -- never rescan under a running batch
    if sPaths["inbox"] is empty then Batch.Paths
    put empty into sList
    put empty into sSize
    Batch.ScanFolder sPaths["inbox"], empty
    -- what the log says about each stack (the last word wins; START alone = it crashed)
    put empty into sState
+   put empty into sRetried
    if there is a file sPaths["log"] then put URL ("file:" & sPaths["log"]) into tLog
    set the itemDel to tab
    repeat for each line tLine in tLog
@@ -136,15 +151,20 @@ on Batch.Scan
          case "START"
             put "CRASHED" into sState[tRel]
             break
+         case "RETRY"
+            put true into sRetried[tRel]
+            break
          case "OK"
          case "FAIL"
+         case "GONE"
             put item 2 of tLine into sState[tRel]
             break
       end switch
    end repeat
    set the itemDel to comma
    repeat for each line tRel in sList
-      if sState[tRel] is empty or sState[tRel] is "OK" then put "waiting" into sState[tRel]
+      if sState[tRel] is empty then put "waiting" into sState[tRel]
+      if sState[tRel] is "OK" then put "MOVEFAIL" into sState[tRel]   -- harvested, but still here
    end repeat
    Batch.ShowList
    Batch.Say (the number of lines of sList) && "stacks in the inbox;" && Batch.Count("waiting") && "waiting," && \
@@ -188,6 +208,7 @@ end Batch.Count
 on Batch.Run
    if sRunning then exit Batch.Run
    Batch.Scan
+   put empty into sTried
    put false into sStop
    put true into sRunning
    put 0 into sDone
@@ -204,25 +225,37 @@ on Batch.Stop
 end Batch.Stop
 
 on Batch.Next
-   local tRel, tResult
+   local tRel, tResult, tLine
    if sStop then
       put false into sRunning
       Batch.Say "stopped:" && sDone && "harvested," && sFailed && "failed. Run carries on from here."
       exit Batch.Next
    end if
+   -- (never clear the variable of a repeat for each inside the loop: after the loop
+   -- LiveCode leaves it holding the last line, and the batch re-picked that stack forever)
    put empty into tRel
-   repeat for each line tRel in sList
-      if sState[tRel] is "waiting" then exit repeat
-      put empty into tRel
+   repeat for each line tLine in sList
+      if sState[tLine] is "waiting" and sTried[tLine] is not true then
+         put tLine into tRel
+         exit repeat
+      end if
    end repeat
    if tRel is empty then
       put false into sRunning
+      -- once, by itself: the stacks that crashed, again with their custom data sampled
+      Batch.Scan
+      if Batch.AutoRetryCount() > 0 then
+         Batch.Say "retrying" && Batch.AutoRetryCount() && "crashed stack(s) with sampled custom data..."
+         Batch.RetryCrashed true
+         exit Batch.Next
+      end if
       Batch.Log "END", empty, sDone && "harvested," && sFailed && "failed in" && (the seconds - sStarted) && "s"
       Batch.Say "finished:" && sDone && "harvested," && sFailed && "failed (" & (the seconds - sStarted) & " s). Log:" && sPaths["log"]
       Batch.ShowList
       exit Batch.Next
    end if
    Batch.Say "harvesting" && tRel && "(" & (sDone + sFailed + 1) & " of" && (sDone + sFailed + Batch.Count("waiting")) & ")..."
+   put true into sTried[tRel]
    Batch.Log "START", tRel, empty     -- written first: if the engine dies, the next run knows
    put Batch.HarvestOne(tRel) into tResult
    if line 1 of tResult begins with "harvested" then
@@ -230,6 +263,9 @@ on Batch.Next
       Batch.MoveDone tRel
       put "moved" into sState[tRel]
       add 1 to sDone
+   else if tResult is "FAIL: file gone" then
+      Batch.Log "GONE", tRel, empty
+      put "GONE" into sState[tRel]
    else
       Batch.Log "FAIL", tRel, line 1 of tResult
       put "FAIL" into sState[tRel]
@@ -241,7 +277,7 @@ end Batch.Next
 
 -- one stack -> XTJSON (the same steps as LIB_XTJSON/python/xtjson_harvest.py)
 function Batch.HarvestOne pRel
-   local tSrc, tOut, tName, tResult, tErr
+   local tSrc, tOut, tName, tResult, tErr, tOpt
    put sPaths["inbox"] & "/" & pRel into tSrc
    if there is not a file tSrc then return "FAIL: file gone"
    put sPaths["out"] & "/" & Batch.NoExt(pRel) into tOut
@@ -259,8 +295,12 @@ function Batch.HarvestOne pRel
       put the short name of stack tSrc into tName
       unlock messages
       if tName is empty then return "FAIL: could not load"
-      harvestStack tName, tOut
+      -- big stacks: their custom property DATA is sampled (first entries), see LCHarvest2
+      put empty into tOpt
+      if sSize[pRel] > kBigStack or sForceSample[pRel] is true then put kSample into tOpt["customSample"]
+      harvestStack tName, tOut, tOpt
       put the result into tResult
+      if tOpt["customSample"] > 0 then put " [custom data sampled: first" && kSample & "]" after line 1 of tResult
       lock messages
       if there is a stack tName then delete stack tName
       unlock messages
@@ -278,7 +318,12 @@ on Batch.MoveDone pRel
    set the itemDel to "/"
    Batch.MakeFolders item 1 to -2 of tTo
    set the itemDel to comma
-   if there is a file tTo then delete file tTo
+   if there is not a file (sPaths["inbox"] & "/" & pRel) then
+      Batch.Log "MOVEFAIL", pRel, "not in the inbox any more"
+      exit Batch.MoveDone
+   end if
+   -- never overwrite: a second file of that name gets a number
+   if there is a file tTo then put Batch.FreeName(tTo) into tTo
    rename file (sPaths["inbox"] & "/" & pRel) to tTo
    if the result is not empty then Batch.Log "MOVEFAIL", pRel, the result
 end Batch.MoveDone
@@ -299,6 +344,52 @@ on Batch.MakeFolders pPath
       put "/" after tSoFar
    end repeat
 end Batch.MakeFolders
+
+function Batch.FreeName pPath
+   local n, tTry
+   repeat with n = 2 to 99
+      put Batch.NoExt(pPath) & "_" & n & "." & Batch.Ext(pPath) into tTry
+      if there is not a file tTry then return tTry
+   end repeat
+   return pPath & "_" & the seconds
+end Batch.FreeName
+
+function Batch.Ext pPath
+   set the itemDel to "."
+   return item -1 of pPath
+end Batch.Ext
+
+-- the crashed ones again, with their custom data sampled (what usually hangs the harvester)
+on Batch.RetryCrashed pOnlyNew
+   local tRel
+   if sRunning then exit Batch.RetryCrashed
+   Batch.Scan
+   repeat for each line tRel in sList
+      if sState[tRel] is "CRASHED" and not (pOnlyNew is true and sRetried[tRel] is true) then
+         put "waiting" into sState[tRel]
+         put true into sForceSample[tRel]
+         Batch.Log "RETRY", tRel, "custom data sampled"
+      end if
+   end repeat
+   Batch.ShowList
+   put empty into sTried
+   put false into sStop
+   put true into sRunning
+   put 0 into sDone
+   put 0 into sFailed
+   put the seconds into sStarted
+   send "Batch.Next" to me in 100 milliseconds
+end Batch.RetryCrashed
+
+-- crashed stacks never retried before (the automatic retry at the end of a run)
+function Batch.AutoRetryCount
+   local tRel, n
+   put 0 into n
+   repeat for each line tRel in sList
+      if sState[tRel] is "CRASHED" and sRetried[tRel] is not true then add 1 to n
+   end repeat
+   return n
+end Batch.AutoRetryCount
 
 function Batch.NoExt pRel
    local tName
@@ -322,3 +413,13 @@ function Batch.Report
    if sRunning then put "running..." & cr after tOut
    return tOut
 end Batch.Report
+
+-- for debugging the batch from a script: what it believes right now
+function Batch.Debug
+   local tOut, tKey
+   put "running=" & sRunning & " list=" & the number of lines of sList & " tried=" & the number of lines of the keys of sTried & cr into tOut
+   repeat for each key tKey in sState
+      put sState[tKey] & tab & tKey & cr after tOut
+   end repeat
+   return tOut
+end Batch.Debug

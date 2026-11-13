@@ -35,6 +35,12 @@
 --   clean         true    remove files of a previous harvest in outFolder first
 --   maxInline     20000   longer text values go to blobs/ (0 = always inline)
 --   skipCustomKeys        comma list of custom property names to ignore
+--   customSample  0       > 0 (e.g. 5): custom property DATA is sampled, for big stacks:
+--                         arrays keep their first N entries (+ "$more": how many not
+--                         written), texts their first N lines (+ line and char counts),
+--                         binary values only their size, and a property set with more
+--                         than 25 keys only its first N keys. Every cut is marked
+--                         "$sampled": true. Enough to see what the data is for.
 --
 -- The target stack is only read. Nothing in it is renamed, set or deleted.
 -- (One exception, undone immediately: an object whose active customPropertySet
@@ -202,6 +208,7 @@ private command beginHarvest pOptions, pOutFolder
    put false into sOpt["ideProps"]
    put true into sOpt["clean"]
    put 20000 into sOpt["maxInline"]
+   put 0 into sOpt["customSample"]
    -- bookkeeping properties the old harvester left on the mainstack
    put "scriptBackUpPathList,propsBackUpPathList,functionRecord,handlerRecord,scriptLineCount,defaultBackupPath" into sOpt["skipCustomKeys"]
    if pOptions is an array then
@@ -625,23 +632,77 @@ private function customJSON pRef, pBase
 end customJSON
 
 private function customSetBody pArr, pBase
-   local tBody, tKeys, tKey, tVal
+   local tBody, tKeys, tKey, tVal, tSample, tCount, tWritten
    if pArr is not an array then return empty
    put the keys of pArr into tKeys
    sort lines of tKeys
+   put sOpt["customSample"] into tSample
+   if tSample is not a number then put 0 into tSample
+   put the number of lines of tKeys into tCount
+   put 0 into tWritten
    repeat for each line tKey in tKeys
       if tKey is empty then next repeat
       if sOpt["ideProps"] is not true and tKey begins with "cREV" then next repeat
       if tKey is among the items of sOpt["skipCustomKeys"] then next repeat
+      -- a set used as a table of records: its first keys explain it
+      if tSample > 0 and tCount > 25 and tWritten >= tSample then exit repeat
       put pArr[tKey] into tVal
-      if tVal is an array then
+      if tSample > 0 then
+         if tVal is an array then
+            jAdd tBody, tKey, sampleArrayJSON(tVal, 1)
+         else if tVal is not empty then
+            jAdd tBody, tKey, sampleTextJSON(tVal)
+         end if
+      else if tVal is an array then
          jAdd tBody, tKey, jArray(tVal)
       else if tVal is not empty then
          jAdd tBody, tKey, customValueJSON(tVal, pBase & "__" & safeName(tKey))
       end if
+      add 1 to tWritten
    end repeat
+   if tSample > 0 and tCount > 25 and tCount > tWritten then
+      jAdd tBody, "$sampled", "true"
+      jAdd tBody, "$more", tCount - tWritten
+   end if
    return tBody
 end customSetBody
+
+-- customSample: an array's first N entries (keys in order), nested arrays sampled too
+private function sampleArrayJSON pArr, pDepth
+   local tKeys, tKey, tBody, tVal, n, tCount
+   put the keys of pArr into tKeys
+   sort lines of tKeys
+   if tKeys is a number or line 1 of tKeys is a number then sort lines of tKeys numeric
+   put the number of lines of tKeys into tCount
+   put 0 into n
+   repeat for each line tKey in tKeys
+      add 1 to n
+      if n > sOpt["customSample"] then exit repeat
+      put pArr[tKey] into tVal
+      if tVal is an array then
+         if pDepth >= 3 then
+            jAdd tBody, tKey, jStr("(array of" && the number of lines of the keys of tVal && "keys)")
+         else
+            jAdd tBody, tKey, sampleArrayJSON(tVal, pDepth + 1)
+         end if
+      else
+         jAdd tBody, tKey, sampleTextJSON(tVal)
+      end if
+   end repeat
+   if tCount > sOpt["customSample"] then
+      jAdd tBody, "$sampled", "true"
+      jAdd tBody, "$more", tCount - sOpt["customSample"]
+   end if
+   return jNode(tBody)
+end sampleArrayJSON
+
+-- customSample: a text's first N lines (at most 1000 chars), with its real size
+private function sampleTextJSON pVal
+   if isBinary(pVal) then return "{" & jPair("$binary", "true") & ", " & jPair("bytes", length(pVal)) & ", " & jPair("$sampled", "true") & "}"
+   if the number of lines of pVal <= sOpt["customSample"] and length(pVal) <= 2000 then return jScalar(pVal)
+   return "{" & jPair("$sampled", "true") & ", " & jPair("lines", the number of lines of pVal) & ", " & \
+         jPair("chars", length(pVal)) & ", " & jPair("first", jStr(char 1 to 1000 of (line 1 to sOpt["customSample"] of pVal))) & "}"
+end sampleTextJSON
 
 private function customValueJSON pVal, pBlobBase
    local tRel

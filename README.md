@@ -29,6 +29,10 @@ runs, a harvest turns every stack into data that outlives it (see `xtalk_py`).
 IDE, or the LIB_MCP standalone: `lcmcp --standalone run 'go stack "//wsl$/Ubuntu/home/igame3d/projects/LIB_XTJSON/livecode/XTJSON_Batch.livecodescript"'`)
 and press **Run**. It lists every stack with its size and state, then works through them
 one by one. Stop finishes the current stack; Run carries on later from where it stopped.
+Stacks over 2 MB are harvested with their custom property data sampled (first 5 entries:
+`customSample`, see docs/HARVEST_FORMAT.md). A stack that crashes LiveCode is retried once,
+sampled, at the end of the run. To run unattended, start it with the watchdog:
+`bash tools/xtjson_batch_watch.sh` (restarts LiveCode when a stack hangs for 5 minutes).
 
 
 From a terminal, with the LIB_MCP standalone (started when needed) or IDE server:
