@@ -62,6 +62,7 @@ on Batch.BuildUI
    Batch.Button "Scan", 120, 76, "Batch.Scan"
    Batch.Button "Stop", 230, 76, "Batch.Stop"
    Batch.Button "Retry crashed", 780, 76, "Batch.RetryCrashed"
+   Batch.Button "Retry failed", 670, 76, "Batch.RetryFailed"
    if there is not a field "Status" then
       reset the templateField
       create field "Status"
@@ -118,7 +119,9 @@ on Batch.Paths
    put sPaths["projects"] & "/LIB_LLMIN/LIB_XTJSON" into sPaths["inbox"]
    put sPaths["projects"] & "/XTJSON/batch" into sPaths["out"]
    put sPaths["projects"] & "/LIB_LLMOUT/Read/LIB_XTJSON" into sPaths["done"]
+   -- the harvester is kept as text (either name works; the owner renamed it to .txt, 2026-11-13)
    put sPaths["projects"] & "/LIB_XTJSON/livecode/LCHarvest2.livecodescript" into sPaths["harvester"]
+   if there is not a file sPaths["harvester"] then put sPaths["projects"] & "/LIB_XTJSON/livecode/LCHarvest2_livecodescript.txt" into sPaths["harvester"]
    put sPaths["out"] & "/_batch_log.tsv" into sPaths["log"]
 end Batch.Paths
 
@@ -153,6 +156,9 @@ on Batch.Scan
             break
          case "RETRY"
             put true into sRetried[tRel]
+            break
+         case "RESET"
+            delete variable sState[tRel]      -- Retry failed: waiting again
             break
          case "OK"
          case "FAIL"
@@ -216,6 +222,11 @@ on Batch.Run
    put the seconds into sStarted
    Batch.MakeFolders sPaths["out"]
    Batch.MakeFolders sPaths["done"]
+   -- a fresh harvester every run: a library left in memory by an earlier run may be stale or empty
+   if there is a stack kHarvestLib then
+      stop using stack kHarvestLib
+      delete stack kHarvestLib
+   end if
    send "Batch.Next" to me in 100 milliseconds
 end Batch.Run
 
@@ -360,6 +371,17 @@ function Batch.Ext pPath
 end Batch.Ext
 
 -- the crashed ones again, with their custom data sampled (what usually hangs the harvester)
+-- failed stacks (e.g. after a harvester fix) get one more go: RESET in the log, then Run
+on Batch.RetryFailed
+   local tRel
+   if sRunning then exit Batch.RetryFailed
+   Batch.Scan
+   repeat for each line tRel in sList
+      if sState[tRel] is "FAIL" then Batch.Log "RESET", tRel, "retry failed"
+   end repeat
+   Batch.Run
+end Batch.RetryFailed
+
 on Batch.RetryCrashed pOnlyNew
    local tRel
    if sRunning then exit Batch.RetryCrashed
