@@ -13,6 +13,7 @@ runs, a harvest turns every stack into data that outlives it (see `xtalk_py`).
 | `livecode/LIB_XTJSON.livecodescript` | Rebuilder: harvest folder -> `XT_<name>` stacks in memory, with `rebuild_report.txt` |
 | `livecode/xtReemder_Rebuild_stack.livecodescript` | Launcher (script-only stack): one button runs rebuild, then re-harvests the copy |
 | `livecode/xt_error_capture.livecodescript` | Reads the IDE's error window (also built into LIB_MCP's error log) |
+| `livecode/XTJSON_Batch.livecodescript` | **Batch app** (script-only stack, builds its own window): one click harvests every stack waiting in `~/projects/LIB_LLMIN/LIB_XTJSON` (any depth) into `~/projects/XTJSON/batch/<same path>/` and moves each original to `~/projects/LIB_LLMOUT/LIB_XTJSON/`. Log: `XTJSON/batch/_batch_log.tsv`; failures stay in the inbox, a stack that crashes the engine is skipped next time |
 | `python/xtjson_diff.py` | Compares two harvests (original vs rebuilt), resolving sparse properties |
 | `python/xtjson_harvest.py` | Harvest a stack file from a terminal (through LIB_MCP), and plain-text questions about a harvest: summary, handlers, globals, custom, script |
 | `mcp/xtjson_tools.py` | MCP tool pack for LIB_MCP's server: `xtjson_harvest`, `xtjson_summary`, `xtjson_handlers`, `xtjson_globals`, `xtjson_custom`, `xtjson_script` |
@@ -22,6 +23,13 @@ runs, a harvest turns every stack into data that outlives it (see `xtalk_py`).
 | `reference/` | The owner's original error-capture card script, kept for reference |
 
 ## Use
+
+**A pile of stacks (the usual way, 2026-11-13):** drop them anywhere under
+`~/projects/LIB_LLMIN/LIB_XTJSON/`, open `livecode/XTJSON_Batch.livecodescript` in LiveCode (the
+IDE, or the LIB_MCP standalone: `lcmcp --standalone run 'go stack "//wsl$/Ubuntu/home/igame3d/projects/LIB_XTJSON/livecode/XTJSON_Batch.livecodescript"'`)
+and press **Run**. It lists every stack with its size and state, then works through them
+one by one. Stop finishes the current stack; Run carries on later from where it stopped.
+
 
 From a terminal, with the LIB_MCP standalone (started when needed) or IDE server:
 
