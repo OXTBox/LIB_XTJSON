@@ -5,3 +5,4 @@ XTJSON/
 XTJSON_REBUILT/
 xtjson_diff.txt
 input/
+analyzed_stacks/
