@@ -104,3 +104,18 @@ Check these against the first real harvest and record the outcome here.
 - 2021: "Controls Harvester", per-property text files in nested folders. It renamed controls and deleted custom keys in the stack it read, and never exported card scripts or card properties.
 - 2026-11: LCHarvest2, JSON output, whole-stack and card harvesting, read-only.
 - 2026-11-11: `layer` added to every control node; `tExt` renamed (compile error); rebuild library, launcher and diff tool added.
+
+
+## Running it from outside LiveCode
+
+`python/xtjson_harvest.py` (and `lcmcp harvest`, and the `xtjson_harvest` MCP tool) send a
+script to LIB_MCP's `/run?in=server`. Keep in mind when changing that script:
+
+- The file has **no `script "..."` header on purpose**: xtReemder reads it as text and it is
+  pasted into stack scripts. The Python side sets it as the script of a hidden stack
+  `XT_HarvestLib` and `start using`s that.
+- `/run` executes through `do` inside `DevServer.Run`, which has its own locals (`tErr`,
+  `tResult`). Declaring one of those again fails with "error in source expression", so the
+  generated script names everything `xh...`.
+- Never `exit` / `exit to top` in that script: it leaves the server's handler too and the
+  client waits for a reply that never comes.

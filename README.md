@@ -14,12 +14,31 @@ runs, a harvest turns every stack into data that outlives it (see `xtalk_py`).
 | `livecode/xtReemder_Rebuild_stack.livecodescript` | Launcher (script-only stack): one button runs rebuild, then re-harvests the copy |
 | `livecode/xt_error_capture.livecodescript` | Reads the IDE's error window (also built into LIB_MCP's error log) |
 | `python/xtjson_diff.py` | Compares two harvests (original vs rebuilt), resolving sparse properties |
+| `python/xtjson_harvest.py` | Harvest a stack file from a terminal (through LIB_MCP), and plain-text questions about a harvest: summary, handlers, globals, custom, script |
+| `mcp/xtjson_tools.py` | MCP tool pack for LIB_MCP's server: `xtjson_harvest`, `xtjson_summary`, `xtjson_handlers`, `xtjson_globals`, `xtjson_custom`, `xtjson_script` |
 | `docs/HARVEST_FORMAT.md` | The JSON format: read before interpreting a harvest |
 | `docs/HARVESTER.md` | Using and changing the harvester; LiveCode pitfalls |
 | `docs/XTJSON_ROUNDTRIP.md` | State of the harvest -> rebuild -> diff work and its findings |
 | `reference/` | The owner's original error-capture card script, kept for reference |
 
 ## Use
+
+From a terminal, with the LIB_MCP standalone (started when needed) or IDE server:
+
+```
+~/projects/LIB_MCP/tools/lcmcp harvest path/to/Stack.livecode [OUTFOLDER]
+python3 python/xtjson_harvest.py summary  <harvest>          # then: handlers / globals / custom / script
+```
+
+`OUTFOLDER` defaults to `~/projects/XTJSON/<file name>`; `<harvest>` may be that bare name.
+The stack is loaded with messages locked (none of its handlers run), harvested, and removed
+from memory again unless it was already open. Nothing is saved. The harvester is installed
+as the script of a hidden stack `XT_HarvestLib` on every call, so edits to it apply at once.
+
+For an MCP client (LM Studio, Claude Desktop):
+`mcp_server.py --tools ~/projects/LIB_XTJSON/mcp/xtjson_tools.py` (see LIB_MCP's README).
+
+By hand, in LiveCode:
 
 In LiveCode: put `LCHarvest2.livecodescript` in a stack script, a library (`start using`)
 or a behavior, then `harvestStack` and `put the result`. For the round trip, put the
