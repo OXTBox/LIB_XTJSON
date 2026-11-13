@@ -4,7 +4,7 @@ script "XTJSON_Batch"
 ## One click: every stack waiting in ~/projects/LIB_LLMIN/LIB_XTJSON (any depth) is taken
 ## apart into XTJSON by LCHarvest2, one after another, and then moved out of the inbox:
 ##   harvest   -> ~/projects/XTJSON/batch/<same relative path, without extension>/
-##   original  -> ~/projects/LIB_LLMOUT/LIB_XTJSON/<same relative path>
+##   original  -> ~/projects/LIB_LLMOUT/Read/LIB_XTJSON/<same relative path>
 ## Failures stay in the inbox. Every step is written to XTJSON/batch/_batch_log.tsv
 ## (START before a stack, OK or FAIL after it). A stack that STARTed and never finished
 ## crashed the engine: it is marked CRASHED and skipped on the next run, so one bad stack
@@ -117,7 +117,7 @@ on Batch.Paths
    put item 1 to -4 of tPath into sPaths["projects"]
    put sPaths["projects"] & "/LIB_LLMIN/LIB_XTJSON" into sPaths["inbox"]
    put sPaths["projects"] & "/XTJSON/batch" into sPaths["out"]
-   put sPaths["projects"] & "/LIB_LLMOUT/LIB_XTJSON" into sPaths["done"]
+   put sPaths["projects"] & "/LIB_LLMOUT/Read/LIB_XTJSON" into sPaths["done"]
    put sPaths["projects"] & "/LIB_XTJSON/livecode/LCHarvest2.livecodescript" into sPaths["harvester"]
    put sPaths["out"] & "/_batch_log.tsv" into sPaths["log"]
 end Batch.Paths
@@ -311,7 +311,7 @@ function Batch.HarvestOne pRel
    return tResult
 end Batch.HarvestOne
 
--- the original leaves the inbox: LIB_LLMOUT/LIB_XTJSON/<same relative path>
+-- the original leaves the inbox: LIB_LLMOUT/Read/LIB_XTJSON/<same relative path>
 on Batch.MoveDone pRel
    local tTo
    put sPaths["done"] & "/" & pRel into tTo
