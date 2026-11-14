@@ -17,7 +17,7 @@ EXE=xt3d_MCP.exe
 start_run() {
   timeout 120 "$LCMCP" --standalone run "if there is a stack \"XTJSON_Batch\" then delete stack \"XTJSON_Batch\"
 go stack \"$APP\"
-send \"Batch.Run\" to stack \"XTJSON_Batch\" in 10 milliseconds
+send \"${BATCH_CMD:-Batch.Run}\" to stack \"XTJSON_Batch\" in 10 milliseconds
 return line 1 of field \"Status\" of stack \"XTJSON_Batch\"" 2>&1 | tail -1
 }
 

@@ -111,7 +111,7 @@ command harvestStack pStack, pOutFolder, pOptions
       try
          writeText tRel, stackNode(tRef, tRole)
       catch tErr
-         logError "stack" && tName && "failed:" && line 1 of tErr
+         logError "stack" && tName && "failed:" && errText(tErr)
          next repeat
       end try
       put "{" & jPair("name", jStr(tName)) & ", " & jPair("role", jStr(tRole)) & ", " & \
@@ -312,7 +312,7 @@ private command buildDefaults
          end try
       end repeat
    catch tErr
-      logError "could not build type defaults (props written in full):" && line 1 of tErr
+      logError "could not build type defaults (props written in full):" && errText(tErr)
    end try
    if there is a stack tTmp then delete stack tTmp
    if tOldDefault is not empty then set the defaultStack to tOldDefault
@@ -325,7 +325,7 @@ end buildDefaults
 -- ============================================================================
 
 private function stackNode pStackRef, pRole
-   local tBody, tName, tCards, tCount, i, tCardRef
+   local tBody, tName, tCards, tCount, i, tCardRef, tNode
    put the short name of pStackRef into tName
    put safeName(tName) into sStackSafe
    put empty into sSeenShared
@@ -345,9 +345,12 @@ private function stackNode pStackRef, pRole
    repeat with i = 1 to tCount
       try
          put the long id of card i of pStackRef into tCardRef
-         listAdd tCards, cardNode(tCardRef, i)
+         -- build first, then add: a by-reference call whose argument recurses into the same by-reference
+         -- handler fails in LiveCode (error 242, 'error in parameter expression'): nested groups were lost
+         put cardNode(tCardRef, i) into tNode
+         listAdd tCards, tNode
       catch tErr
-         logError "card" && i && "of stack" && tName && "failed:" && line 1 of tErr
+         logError "card" && i && "of stack" && tName && "failed:" && errText(tErr)
       end try
    end repeat
    jAdd tBody, "cards", jList(tCards)
@@ -356,7 +359,7 @@ private function stackNode pStackRef, pRole
 end stackNode
 
 private function cardNode pCardRef, pNumber
-   local tBody, tId, tName, tBase, tItems, tCount, i, tCtlId
+   local tBody, tId, tName, tBase, tItems, tCount, i, tCtlId, tNode
    put the id of pCardRef into tId
    put the short name of pCardRef into tName
    if tName is ("card id" && tId) then put empty into tName
@@ -377,9 +380,12 @@ private function cardNode pCardRef, pNumber
       try
          put the id of control i of pCardRef into tCtlId
          if sSeenOnCard[tCtlId] is true then next repeat
-         listAdd tItems, controlNode("control id" && tCtlId && "of" && pCardRef, pCardRef, tCtlId)
+         -- build first, then add: a by-reference call whose argument recurses into the same by-reference
+         -- handler fails in LiveCode (error 242, 'error in parameter expression'): nested groups were lost
+         put controlNode("control id" && tCtlId && "of" && pCardRef, pCardRef, tCtlId) into tNode
+         listAdd tItems, tNode
       catch tErr
-         logError "control" && i && "of" && pCardRef && "failed:" && line 1 of tErr
+         logError "control" && i && "of" && pCardRef && "failed:" && errText(tErr)
       end try
    end repeat
    jAdd tBody, "controls", jList(tItems)
@@ -388,7 +394,7 @@ private function cardNode pCardRef, pNumber
 end cardNode
 
 private function controlNode pRef, pCardRef, pId
-   local tBody, tType, tName, tBase, tText, tHtml, tProbe, tKids, tChildId, tStyle
+   local tBody, tType, tName, tBase, tText, tHtml, tProbe, tKids, tChildId, tStyle, tNode
    put true into sSeenOnCard[pId]
    put word 1 of the name of pRef into tType
    if tType is "bkgnd" or tType is "background" then put "group" into tType
@@ -448,9 +454,12 @@ private function controlNode pRef, pCardRef, pId
       repeat for each line tChildId in the childControlIDs of pRef
          if tChildId is empty then next repeat
          try
-            listAdd tKids, controlNode("control id" && tChildId && "of" && pCardRef, pCardRef, tChildId)
+            -- build first, then add: a by-reference call whose argument recurses into the same by-reference
+            -- handler fails in LiveCode (error 242, 'error in parameter expression'): nested groups were lost
+            put controlNode("control id" && tChildId && "of" && pCardRef, pCardRef, tChildId) into tNode
+            listAdd tKids, tNode
          catch tErr
-            logError "control id" && tChildId && "of" && pCardRef && "failed:" && line 1 of tErr
+            logError "control id" && tChildId && "of" && pCardRef && "failed:" && errText(tErr)
          end try
       end repeat
       jAdd tBody, "controls", jList(tKids)
@@ -1016,6 +1025,17 @@ private function stackRefOf pLongId
    if tOffset is 0 then return the long id of this stack
    return char (tOffset + 4) to -1 of pLongId
 end stackRefOf
+
+-- every frame of a LiveCode error on one line (innermost first), so the real failing call shows
+private function errText pErr
+   local tOut, tLine
+   repeat for each line tLine in pErr
+      if tLine is empty then next repeat
+      if tOut is not empty then put " < " after tOut
+      put tLine after tOut
+   end repeat
+   return tOut
+end errText
 
 private command logError pMessage
    put pMessage & cr after sErrors
