@@ -26,6 +26,8 @@ import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)                                   # .../LIB_XTJSON
 HARVESTER = os.path.join(REPO, 'livecode', 'LCHarvest2.livecodescript')
+if not os.path.isfile(HARVESTER):      # kept as text by the owner (2026-11-13): either name works
+    HARVESTER = os.path.join(REPO, 'livecode', 'LCHarvest2_livecodescript.txt')
 HARVEST_ROOT = os.environ.get('XTJSON_HARVEST_ROOT', os.path.expanduser('~/projects/XTJSON'))
 LIB_NAME = 'XT_HarvestLib'
 
