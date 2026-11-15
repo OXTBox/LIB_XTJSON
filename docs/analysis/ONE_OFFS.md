@@ -45,7 +45,7 @@ copy it in), **drop**.
 | Stack | Author per its own text | Licence seen | What to learn |
 |---|---|---|---|
 | `arcade_engine_6demo` (`animationEngine`, `ae6demo`, `collisionListenerDemo`) and `map_zoom` (uses it) | Malte Pfaff-Brill (animationEngine) | GPL (stated in the script) | collision callbacks, constrained dragging, eased moves. GPL: copying it in would make that LIB GPL |
-| `Invaders/Invaders` | John Craig, 2013 (splash21.com) | GPL (stated) | a complete small arcade game in one card: 603 controls, a 605-line loop; a good size target for our demos |
+| `Invaders/Invaders` | John Craig, 2013 (splash21.com) | GNU Affero GPL (stated) | a complete small arcade game in one card: 603 controls, a 605-line loop; a good size target for our demos |
 | `Invaders/getinline` | not stated in the header | - | drag-to-reorder list lines |
 | `bouncy` (+ `video_capture`) | not stated in the header | - | drag-drop images that bounce; video capture |
 | `Scott_Rossi_Stacks_Perhaps_question_mark` (26 stacks: Calendar, DateTime, XMLdemo, POP/SMTP libraries, MySQL, StackDock, RevGZ, UnixCal, PlistEditor...) | Revolution-era freeware; the scripts' own credits name "Sarah" in most and Scott Rossi / "troz" in some, so the folder holds more than one author | per stack | `DateTime` (1,057 lines of date maths), `Colors` (RGB ↔ HSV), `XMLdemo` (XML tree). Their mail / MySQL / serial / Mac plist code is out of date |
@@ -57,5 +57,5 @@ copy it in), **drop**.
   about a third).
 - **P5** Add `owner / type / content` from `GAD_Globals` to the LIB_GLOBALS register. Cost: small.
 - **P6** `Schema_Livecode_thing` → a schema per XTJSON file type. Cost: small.
-- Licence note for the owner: animationEngine and Invaders are GPL. They're fine as reference,
+- Licence note for the owner: animationEngine is GPL and Invaders is AGPL. They're fine as reference,
   but code copied from them into a LIB that goes public (LIB_PUBLIC, itch.io) would carry the GPL.
